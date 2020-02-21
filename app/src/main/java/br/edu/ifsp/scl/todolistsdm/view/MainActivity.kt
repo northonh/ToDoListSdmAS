@@ -2,6 +2,7 @@ package br.edu.ifsp.scl.todolistsdm.view
 
 import android.app.Activity
 import android.content.Intent
+import android.os.AsyncTask
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.ContextMenu
@@ -9,8 +10,10 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.AdapterView
+import androidx.room.Room
 import br.edu.ifsp.scl.todolistsdm.R
 import br.edu.ifsp.scl.todolistsdm.adapter.ListaTarefasAdapter
+import br.edu.ifsp.scl.todolistsdm.model.database.ToDoListDatabase
 import br.edu.ifsp.scl.todolistsdm.model.entity.Tarefa
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.celula_lista_tarefas.view.*
@@ -30,6 +33,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var listaTarefasAdapter: ListaTarefasAdapter
     private lateinit var listaTarefas: MutableList<Tarefa>
+    private lateinit var toDoListDatabase: ToDoListDatabase
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +62,13 @@ class MainActivity : AppCompatActivity() {
             /*
             Atualizar atributo checado na fonte de dados
              */
+            object: AsyncTask<Tarefa, Unit, Unit>() {
+                override fun doInBackground(vararg params: Tarefa?) {
+                    params[0]?.let {
+                        toDoListDatabase.getTarefaDao().atualizarTarefa(it)
+                    }
+                }
+            }.execute()
         }
 
         registerForContextMenu(conteudoLv)
@@ -72,10 +83,29 @@ class MainActivity : AppCompatActivity() {
         /*
         Buscar referência com fonte de dados
          */
+        toDoListDatabase = Room.databaseBuilder(
+            this,
+            ToDoListDatabase::class.java,
+            ToDoListDatabase.Constantes.DB_NAME
+        ).build()
 
         /*
         Recuperar tarefas da fonte de dados e passar para o adaptador do ListView
          */
+        RecuperarTarefasAT().execute()
+    }
+
+    private inner class RecuperarTarefasAT: AsyncTask<Unit, Unit, List<Tarefa>>() {
+        override fun onPostExecute(result: List<Tarefa>?) {
+            super.onPostExecute(result)
+            listaTarefas.clear()
+            listaTarefas.addAll(result!!)
+            listaTarefasAdapter.notifyDataSetChanged()
+        }
+
+        override fun doInBackground(vararg params: Unit?): List<Tarefa> {
+            return toDoListDatabase.getTarefaDao().recuperarTarefas()
+        }
     }
 
     override fun onCreateContextMenu(
@@ -104,10 +134,22 @@ class MainActivity : AppCompatActivity() {
                         /*
                         Remover tarefa da fonte de dados
                          */
+                        object: AsyncTask<Tarefa, Unit, Unit>() {
+                            override fun doInBackground(vararg params: Tarefa?) {
+                                params[0]?.let{
+                                    toDoListDatabase.getTarefaDao().removerTarefa(it)
+                                }
+                            }
 
-                        /* Remover tarefa do adaptador do ListView */
-                        listaTarefasAdapter.remove(tarefaClicada)
-                        toast(getString(R.string.tarefa_removida))
+                            override fun onPostExecute(result: Unit?) {
+                                super.onPostExecute(result)
+                                /* Remover tarefa do adaptador do ListView */
+                                listaTarefasAdapter.remove(tarefaClicada)
+                                toast(getString(R.string.tarefa_removida))
+                            }
+                        }.execute()
+
+
                     }
                     cancelButton {
                         /* Ação cancelada pelo usuário, nada necessário */
@@ -131,11 +173,19 @@ class MainActivity : AppCompatActivity() {
                     /*
                     Remover TODAS as tarefas da fonte de dados
                      */
+                    object: AsyncTask<Unit, Unit, Unit>() {
+                        override fun doInBackground(vararg params: Unit) {
+                            toDoListDatabase.getTarefaDao().removerTarefas(*listaTarefas.toTypedArray())
+                        }
 
-                    /* Remover TODAS as tarefas do adaptador do ListView */
-                    listaTarefas.clear()
-                    listaTarefasAdapter.notifyDataSetChanged()
-                    toast(getString(R.string.tarefas_removidas))
+                        override fun onPostExecute(result: Unit?) {
+                            super.onPostExecute(result)
+                            /* Remover TODAS as tarefas do adaptador do ListView */
+                            listaTarefas.clear()
+                            listaTarefasAdapter.notifyDataSetChanged()
+                            toast(getString(R.string.tarefas_removidas))
+                        }
+                    }.execute()
                 }
                 cancelButton {
                     /* Ação cancelada pelo usuário, nada necessário */
