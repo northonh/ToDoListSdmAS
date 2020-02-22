@@ -2,18 +2,16 @@ package br.edu.ifsp.scl.todolistsdm.view
 
 import android.app.Activity
 import android.content.Intent
-import android.os.AsyncTask
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.ContextMenu
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.AdapterView
-import androidx.room.Room
+import androidx.appcompat.app.AppCompatActivity
 import br.edu.ifsp.scl.todolistsdm.R
 import br.edu.ifsp.scl.todolistsdm.adapter.ListaTarefasAdapter
-import br.edu.ifsp.scl.todolistsdm.model.database.ToDoListDatabase
+import br.edu.ifsp.scl.todolistsdm.controller.MainActivityController
 import br.edu.ifsp.scl.todolistsdm.model.entity.Tarefa
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.celula_lista_tarefas.view.*
@@ -32,8 +30,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var listaTarefasAdapter: ListaTarefasAdapter
-    private lateinit var listaTarefas: MutableList<Tarefa>
-    private lateinit var toDoListDatabase: ToDoListDatabase
+    private lateinit var controller: MainActivityController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,32 +40,26 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(toolbarTb)
 
         /* Adaptador do ListView */
-        listaTarefas = mutableListOf()
-
         listaTarefasAdapter =
             ListaTarefasAdapter(
                 this,
-                listaTarefas
+                mutableListOf()
             )
         conteudoLv.adapter = listaTarefasAdapter
 
         /* Menu de contexto */
         conteudoLv.setOnItemClickListener { _, view, position, _ ->
-            val tarefaClicada = listaTarefas[position]
-            tarefaClicada.checado = if (tarefaClicada.checado == 1) 0 else 1
+            val tarefaClicada = listaTarefasAdapter.getItem(position)
+            tarefaClicada?.checado = if (tarefaClicada?.checado == 1) 0 else 1
 
-            view.checadoTarefaCb.isChecked = tarefaClicada.checado == 1
+            view.checadoTarefaCb.isChecked = tarefaClicada?.checado == 1
 
             /*
             Atualizar atributo checado na fonte de dados
              */
-            object: AsyncTask<Tarefa, Unit, Unit>() {
-                override fun doInBackground(vararg params: Tarefa?) {
-                    params[0]?.let {
-                        toDoListDatabase.getTarefaDao().atualizarTarefa(it)
-                    }
-                }
-            }.execute()
+            tarefaClicada?.let {
+                controller.alterarTarefa(it)
+            }
         }
 
         registerForContextMenu(conteudoLv)
@@ -81,31 +72,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         /*
-        Buscar referência com fonte de dados
+        Instanciar controller
          */
-        toDoListDatabase = Room.databaseBuilder(
-            this,
-            ToDoListDatabase::class.java,
-            ToDoListDatabase.Constantes.DB_NAME
-        ).build()
+        controller = MainActivityController(this)
 
         /*
         Recuperar tarefas da fonte de dados e passar para o adaptador do ListView
          */
-        RecuperarTarefasAT().execute()
-    }
-
-    private inner class RecuperarTarefasAT: AsyncTask<Unit, Unit, List<Tarefa>>() {
-        override fun onPostExecute(result: List<Tarefa>?) {
-            super.onPostExecute(result)
-            listaTarefas.clear()
-            listaTarefas.addAll(result!!)
-            listaTarefasAdapter.notifyDataSetChanged()
-        }
-
-        override fun doInBackground(vararg params: Unit?): List<Tarefa> {
-            return toDoListDatabase.getTarefaDao().recuperarTarefas()
-        }
+        controller.buscarTarefas()
     }
 
     override fun onCreateContextMenu(
@@ -134,22 +108,9 @@ class MainActivity : AppCompatActivity() {
                         /*
                         Remover tarefa da fonte de dados
                          */
-                        object: AsyncTask<Tarefa, Unit, Unit>() {
-                            override fun doInBackground(vararg params: Tarefa?) {
-                                params[0]?.let{
-                                    toDoListDatabase.getTarefaDao().removerTarefa(it)
-                                }
-                            }
-
-                            override fun onPostExecute(result: Unit?) {
-                                super.onPostExecute(result)
-                                /* Remover tarefa do adaptador do ListView */
-                                listaTarefasAdapter.remove(tarefaClicada)
-                                toast(getString(R.string.tarefa_removida))
-                            }
-                        }.execute()
-
-
+                        tarefaClicada?.let{
+                            controller.apagarTarefa(it)
+                        }
                     }
                     cancelButton {
                         /* Ação cancelada pelo usuário, nada necessário */
@@ -173,19 +134,7 @@ class MainActivity : AppCompatActivity() {
                     /*
                     Remover TODAS as tarefas da fonte de dados
                      */
-                    object: AsyncTask<Unit, Unit, Unit>() {
-                        override fun doInBackground(vararg params: Unit) {
-                            toDoListDatabase.getTarefaDao().removerTarefas(*listaTarefas.toTypedArray())
-                        }
-
-                        override fun onPostExecute(result: Unit?) {
-                            super.onPostExecute(result)
-                            /* Remover TODAS as tarefas do adaptador do ListView */
-                            listaTarefas.clear()
-                            listaTarefasAdapter.notifyDataSetChanged()
-                            toast(getString(R.string.tarefas_removidas))
-                        }
-                    }.execute()
+                    controller.apagarTarefas(*listaTarefasAdapter.getAll().toTypedArray())
                 }
                 cancelButton {
                     /* Ação cancelada pelo usuário, nada necessário */
@@ -206,7 +155,7 @@ class MainActivity : AppCompatActivity() {
                 val tarefaExistente = listaTarefasAdapter.getTarefaById(tarefaRetorno.id)
                 if (tarefaExistente != null) {
                     /* Atualiza tarefa existente */
-                    val indiceTarefaExistente = listaTarefas.indexOf(tarefaExistente)
+                    val indiceTarefaExistente = listaTarefasAdapter.getPosition(tarefaExistente)
 
                     /* Remover e inserir força atualização do ListView */
                     listaTarefasAdapter.remove(tarefaExistente)
@@ -218,5 +167,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    fun setTarefas(listaTarefas: MutableList<Tarefa>) {
+        listaTarefasAdapter.clear()
+        listaTarefasAdapter.addAll(listaTarefas)
+    }
+
+    fun notificaTarefaApagada(tarefa: Tarefa) {
+        toast(getString(R.string.tarefa_removida))
+        /* Remover tarefa do adaptador do ListView */
+        listaTarefasAdapter.remove(tarefa)
+    }
+
+    fun notificaTarefasApagadas() {
+        /* Remover TODAS as tarefas do adaptador do ListView */
+        listaTarefasAdapter.clear()
+        toast(getString(R.string.tarefas_removidas))
     }
 }

@@ -44,6 +44,16 @@ class ListaTarefasAdapter(contexto: Context, listaTarefas: MutableList<Tarefa>):
         return null
     }
 
+    fun getAll(): MutableList<Tarefa> {
+        val lista = mutableListOf<Tarefa>()
+        for (indice in 0..count - 1) {
+            getItem(indice)?.let{
+                lista.add(it)
+            }
+        }
+        return lista
+    }
+
     data class CelulaListaTarefasViewHolder (
         val textView: TextView,
         val checkBox: CheckBox
