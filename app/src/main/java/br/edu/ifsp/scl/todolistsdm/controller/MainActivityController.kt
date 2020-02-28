@@ -28,14 +28,18 @@ class MainActivityController(private val view: MainActivity) {
     fun apagarTarefa(tarefa: Tarefa){
         GlobalScope.launch {
             model.removerTarefa(tarefa)
-            view.notificaTarefaApagada(tarefa)
+            view.runOnUiThread {
+                view.notificaTarefaApagada(tarefa)
+            }
         }
     }
 
     fun apagarTarefas(vararg tarefa: Tarefa){
         GlobalScope.launch {
             model.removerTarefas(*tarefa)
-            view.notificaTarefasApagadas()
+            view.runOnUiThread {
+                view.notificaTarefasApagadas()
+            }
         }
     }
 

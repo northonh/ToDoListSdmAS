@@ -2,14 +2,12 @@ package br.edu.ifsp.scl.todolistsdm.view
 
 import android.app.Activity
 import android.content.Intent
-import android.os.AsyncTask
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import androidx.room.Room
+import androidx.appcompat.app.AppCompatActivity
 import br.edu.ifsp.scl.todolistsdm.R
-import br.edu.ifsp.scl.todolistsdm.model.database.ToDoListDatabase
+import br.edu.ifsp.scl.todolistsdm.controller.TarefaActivityController
 import br.edu.ifsp.scl.todolistsdm.model.entity.Tarefa
 import kotlinx.android.synthetic.main.activity_tarefa.*
 import kotlinx.android.synthetic.main.toolbar.*
@@ -17,7 +15,7 @@ import splitties.toast.toast
 
 class TarefaActivity : AppCompatActivity() {
     private var tarefa: Tarefa? = null
-    private lateinit var toDoListDatabase: ToDoListDatabase
+    private lateinit var controller: TarefaActivityController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,13 +25,9 @@ class TarefaActivity : AppCompatActivity() {
         setSupportActionBar(toolbarTb)
 
         /*
-        Buscar referência com fonte de dados
+        Instanciando controller
          */
-        toDoListDatabase = Room.databaseBuilder(
-            this,
-            ToDoListDatabase::class.java,
-            ToDoListDatabase.Constantes.DB_NAME
-        ).build()
+        controller = TarefaActivityController(this)
 
         /* Edição ou Nova? */
         tarefa = intent.getParcelableExtra(MainActivity.Constantes.TAREFA_EXTRA)
@@ -60,46 +54,29 @@ class TarefaActivity : AppCompatActivity() {
                  */
                 if (tarefa == null) {
                     tarefa = Tarefa(nome = nomeTarefaEt.text.toString())
+                    controller.salvarTarefa(tarefa!!)
                 }
                 else {
                     tarefa?.nome = nomeTarefaEt.text.toString()
+                    controller.alterarTarefa(tarefa!!)
                 }
-
-                /*
-                Retorna tarefa para MainActivity
-                 */
-                SalvarAtualizarTarefaAT().execute(tarefa)
             }
         }
         return true
     }
 
-    private inner class SalvarAtualizarTarefaAT: AsyncTask<Tarefa, Unit, Tarefa>(){
-        override fun onPostExecute(tarefa: Tarefa?) {
-            super.onPostExecute(tarefa)
-            if (tarefa != null) {
-                val intentRetorno = Intent()
-                intentRetorno.putExtra(
-                    MainActivity.Constantes.TAREFA_EXTRA,
-                    tarefa
-                )
-                setResult(Activity.RESULT_OK, intentRetorno)
-            }
-
-            finish()
+    fun setRetorno(tarefa: Tarefa) {
+        /*
+        Retorna tarefa para MainActivity
+        */
+        if (tarefa != null) {
+            val intentRetorno = Intent()
+            intentRetorno.putExtra(
+                MainActivity.Constantes.TAREFA_EXTRA,
+                tarefa
+            )
+            setResult(Activity.RESULT_OK, intentRetorno)
         }
-
-        override fun doInBackground(vararg params: Tarefa?): Tarefa {
-            val tarefaRetorno: Tarefa
-            if (params[0]?.id == 0) {
-                val id = toDoListDatabase.getTarefaDao().inserirTarefa(params[0]!!)
-                tarefaRetorno = toDoListDatabase.getTarefaDao().recuperaTarefa(id.toInt())
-            }
-            else {
-                toDoListDatabase.getTarefaDao().atualizarTarefa(params[0]!!)
-                tarefaRetorno = params[0]!!
-            }
-            return tarefaRetorno
-        }
+        finish()
     }
 }
